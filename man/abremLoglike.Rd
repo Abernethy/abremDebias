@@ -8,7 +8,7 @@
 }
 
 \usage{
-abremLoglike(x, par, dist="weibull" )
+abremLoglike(x, par, dist="weibull", tz=0 )
 }
 
 \arguments{
@@ -23,6 +23,8 @@ abremLoglike(x, par, dist="weibull" )
   }
   \item{dist}{A string defining a distribution to be fit. Implemented distributions are "weibull" (default) and "lognormal".
   (Only 2-parameter models are accepted.)
+  }
+  \item{tz}{A scalar vector with the translation parameter, t0, to be applied to data.
   }
 }
 

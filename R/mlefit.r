@@ -1,4 +1,7 @@
-mlefit<-function(x, dist="weibull", debias=NULL, con=NULL)  {			
+mlefit<-function(x, dist="weibull", debias=NULL, optcontrol=NULL)  {
+## tz is required for MLEloglike and MLEsimplex calls now		
+		default_tz=0
+			
 ## check basic parameters of x				
 	if(class(x)!="data.frame") {stop("mlefit takes a structured dataframe input, use mleframe")}			
 	if(ncol(x)!=3)  {stop("mlefit takes a structured dataframe input, use mleframe")}			
@@ -67,7 +70,7 @@ mlefit<-function(x, dist="weibull", debias=NULL, con=NULL)  {
 	N<-c(Nf,Ns,Nd,Ni)
 			
 ## establish distribution number
-	if(tolower(dist)=="weibull"	)  {
+	if(tolower(dist)=="weibull" || tolower(dist)=="weibull2p" || tolower(dist)=="weibull3p")  {
 		dist_num=1
 		m <- mean(log(data_est))			
 		v <- var(log(data_est))			
@@ -76,81 +79,100 @@ mlefit<-function(x, dist="weibull", debias=NULL, con=NULL)  {
 		vstart <- c(shape, scale)
 
 	}else{
-		if(tolower(dist)=="lognormal")  {
+		if(tolower(dist)=="lognormal"|| tolower(dist)=="lognormal2p"|| tolower(dist)=="lognormal3p")  {
 			dist_num=2
 			ml <- mean(log(data_est))
 			sdl<- sd(log(data_est))
 			vstart<-c(ml,sdl)
-			
-			
-			
 		}else{
 			stop("distribution not resolved")
 		}
 	}
 	
-## Optional optimization con list to be handled here				
+## Optional optimization control list to be handled here				
 		## vstart will be as estimated	
 		limit<-1e-5	
 		maxit<-100	
 		listout<-FALSE	
 			
-	if(length(con)>0)  {		
-		if(length(con$vstart>0))  {	
-			vstart<-con$vstart
+	if(length(optcontrol)>0)  {		
+		if(length(optcontrol$vstart>0))  {	
+			vstart<-optcontrol$vstart
 		}	
-		if(length(con$limit)>0)  {	
-			limit<-con$limit
+		if(length(optcontrol$limit)>0)  {	
+			limit<-optcontrol$limit
 		}	
-		if(length(con$maxit)>0)  {	
-			maxit<-con$maxit
+		if(length(optcontrol$maxit)>0)  {	
+			maxit<-optcontrol$maxit
 		}	
-		if(length(con$listout)>0)  {	
-			listout<-con$listout
+		if(length(optcontrol$listout)>0)  {	
+			listout<-optcontrol$listout
 		}	
 	}
 
-pos<-1			
-Q<-sum(q)			
-for(j in seq(1,4))  {			
-	if(N[j]>0) {		
-		Q<-c(Q, sum(q[pos:(pos+N[j]-1)]))	
-		pos<-pos+N[j]	
-	}else{		
-		Q<-c(Q, 0)	
-	}		
-}			
-names(Q)<-c("n","fo", "s", "d", "i")	
+	pos<-1			
+	Q<-sum(q)			
+	for(j in seq(1,4))  {			
+		if(N[j]>0) {		
+			Q<-c(Q, sum(q[pos:(pos+N[j]-1)]))	
+			pos<-pos+N[j]	
+		}else{		
+			Q<-c(Q, 0)	
+		}		
+	}			
+	names(Q)<-c("n","fo", "s", "d", "i")	
 
 	MLEclassList<-list(fsdi=fsdi,q=q,N=N)
-## Test for successful log-likelihood calculation with given vstart			
-		LLtest<-.Call("MLEloglike",MLEclassList,vstart,dist_num, package="abremDebias")	
+## Test for successful log-likelihood calculation with given vstart	
+## tz is required for MLEloglike call now				
+		LLtest<-.Call("MLEloglike",MLEclassList,vstart,dist_num, default_tz, package="abremDebias")	
 		if(!is.finite(LLtest))  {	
 			stop("Cannot start optimization with given parameters")
 		}	
 	
-	SimplexList<-list(dist_num=dist_num, vstart=vstart,limit=limit,maxit=maxit)
+	ControlList<-list(dist_num=dist_num,limit=limit,maxit=maxit)
+	
+## Handle the original 2 parameter case first	
+	if(tolower(dist)=="weibull" || tolower(dist)=="lognormal" ||tolower(dist)=="weibull2p" || tolower(dist)=="lognormal2p"  )  {
+		
+## listout control is passed as an integer to C++, this enables temporary change of status without losing input argument value
 
-	retlist<-.Call("MLEsimplex",MLEclassList, SimplexList, package="abremDebias")
-	
-	outvec<-retlist[[1]][1:3]
-	
+			if(listout==TRUE)  {
+				listout_int<-1
+			}else{
+				listout_int<-0
+			}
+##  tz  inserted here with a default of zero		
+		result_of_simplex_call<-.Call("MLEsimplex",MLEclassList, ControlList, vstart, default_tz, listout_int, package="abremDebias")
+## extract fit vector from result of call to enable finishing treatment of the outvec	
+		if(listout==FALSE)  {
+			resultvec<-result_of_simplex_call
+		}else{
+			resultvec<-result_of_simplex_call[[1]]
+		}
+		outvec<-resultvec[1:3]	
+		if(resultvec[4]>0)  {	
+			warn<-"likelihood optimization did not converge"
+			attr(outvec,"warning")<-warn
+		}	
+		
 		if(dist_num == 1)  {			
 			names(outvec)<-c("Eta","Beta","LL")		
-			if(length(debias)>0)  {		
-				attr(outvec,"bias_adj")<-debias	
+			if(length(debias)>0)  {	
+				if(debias!="rba"&&debias!="mean"&&debias!="hirose-ross")  {	
+					stop("debias method not resolved")
+				}	
 				if(debias=="rba")  {						
 					outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="weibull",basis="median")
-					outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[2],outvec[1]),dist_num, package="abremDebias")
 				}	
 				if(debias=="mean")  {	
 					outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="weibull",basis="mean")
-					outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[2],outvec[1]),dist_num, package="abremDebias")
 				}	
 				if(debias=="hirose-ross")  {						
 					outvec[2]<-outvec[2]*hrbu(Q[1]-Q[3], Q[3])
-					outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[2],outvec[1]),dist_num, package="abremDebias")
-				}	
+				}
+			outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[2],outvec[1]),dist_num, default_tz, package="abremDebias")	
+			attr(outvec,"bias_adj")<-debias
 			}		
 		}			
 					
@@ -158,28 +180,36 @@ names(Q)<-c("n","fo", "s", "d", "i")
 			names(outvec)<-c("Mulog","Sigmalog","LL")		
 			if(length(debias)>0)  {				
 				outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="lognormal")
-				outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[1],outvec[2]),dist_num, package="abremDebias")
 				if(debias!="rba")  {	
 					warning("rba has been applied to adjust lognormal")
 					debias="rba"
-				}	
-				attr(outvec,"bias_adj")<-debias	
+				}
+			outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[1],outvec[2]),dist_num, default_tz, package="abremDebias")	
+			attr(outvec,"bias_adj")<-debias	
 			}	
 		}
+		
+		
+		if(listout==TRUE) {
+			optDF<-as.data.frame(result_of_simplex_call[[2]])
+			if(dist_num == 1)  {
+				names(optDF)<-c("beta_est", "eta_est", "negLL", "error")
+			}
+			if(dist_num == 2)  {
+				names(optDF)<-c("mulog_est", "sigmalog_est", "negLL", "error")
+			}		
+		}
+		
+## end of 2p code	
+	}
 
-	if(retlist[[1]][4]>0)  {
-		warn<-"likelihood optimization did not converge"
-		attr(outvec,"warning")<-warn
-	}
-	
+## the following applies to both 2p and 3p results
 	attr(outvec,"data_types")<-Q[-2]
-	
-	if(listout==FALSE) {
+	if(listout==FALSE) {	
 		return(outvec)
-	}else{
-		optDF<-as.data.frame(retlist[[2]])
-		names(optDF)<-c("beta_est", "eta_est", "negLL", "error")
+	}else{	
 		return(list(fit=outvec, opt=optDF))
-	}
-	
+	}	
+
+## end function	
 }				
