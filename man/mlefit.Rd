@@ -17,8 +17,8 @@ mlefit(x, dist="weibull", debias=NULL, optcontrol=NULL)
 	Suspension data has last known life[time] entered in 'left' column and -1 entered in 'right' column.
 	The left(early) interval bound for left-censored data must be entered as zero. (NA is not accepted).
   }
-  \item{dist}{A string defining a distribution to be fit. Implemented distributions are "weibull" (default) and "lognormal".
-  (Implementations for "weibull3p" and "lognormal3p" are pending.)
+  \item{dist}{A string defining a distribution to be fit. Implemented distributions are "weibull" (default),"lognormal",
+   "weibull3p" and "lognormal3p".
   }
   \item{debias}{An optional string argument indicating the adjustment to be applied to the shape or standard deviation
   parameter of the fitted data. Adjustments recognized are: "rba" (default), "mean", and "hirose-ross". Any entry for debias

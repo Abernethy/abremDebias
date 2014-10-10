@@ -132,6 +132,16 @@ mlefit<-function(x, dist="weibull", debias=NULL, optcontrol=NULL)  {
 	
 	ControlList<-list(dist_num=dist_num,limit=limit,maxit=maxit)
 	
+## here is a good place to validate any debias argument (before more calculations begin)			
+	if(length(debias)>0 && dist_num==1)  {		
+		if(tolower(debias)!="rba"&&tolower(debias)!="mean"&&tolower(debias)!="hirose-ross")  {	
+			stop("debias method not resolved")
+		}	
+	}		
+
+
+
+	
 ## Handle the original 2 parameter case first	
 	if(tolower(dist)=="weibull" || tolower(dist)=="lognormal" ||tolower(dist)=="weibull2p" || tolower(dist)=="lognormal2p"  )  {
 		
@@ -203,6 +213,150 @@ mlefit<-function(x, dist="weibull", debias=NULL, optcontrol=NULL)  {
 ## end of 2p code	
 	}
 
+	
+	
+##  this section of code is specifically addressing 3p models						
+	if(tolower(dist)=="weibull3p" || tolower(dist)=="lognormal3p"  )  {					
+				
+## For now, listout is passed as integer						
+## listout argument has different meaning for 3p models						
+		listout_int<-0				
+						
+						
+## for now enter a default tz=0						
+			result_of_simplex_call<-.Call("MLEsimplex",MLEclassList, ControlList, vstart, default_tz, listout_int, package="abremDebias")			
+			if(result_of_simplex_call[4]>0)  {			
+				stop("2p model does not converge")		
+			}			
+## restore the meaning of listout						
+			if(listout==TRUE)  {			
+				listout_int<-1		
+			}else{			
+				listout_int<-0		
+			}			
+##########################################################						
+##                      this would be the position to go to C++						
+##########################################################						
+						
+				secant_warning=FALSE		
+##  Tao Pang's original variable labels from FORTRAN are used where possible						
+				DL<-ControlList$limit		
+## Introduce constraints for tz						
+## need to create the vector of potential minimums						
+				fdr<-NULL		
+				if(Nf>0) {fdr<-fsdi[1:Nf]}		
+				if(Nd>0) {fdr<-c(fdr,fsdi[(Nf+Ns+1):(Nf+Ns+Nd)])}		
+				if(Ni>0)  {fdr<-c(fdr, fsdi[(Nf+Ns+Nd+Ni+1):(Nf+Ns+Nd+2*Ni)])}		
+						
+				C1<-min(fdr)		
+				maxit<-100		
+						
+## initial step is based on min(x)*.1						
+				DX<-C1*0.1		
+				X0<-0.0		
+				istep<-0		
+				X1<-X0+DX		
+				if(X1>C1) {X1<-X0+0.9*(C1-X0)}		
+						
+				tz=0		
+				FX0vec<-.Call("MLEdMaxLLdx", MLEclassList, ControlList, vstart, tz, package="abremDebias")		
+				FX0<-FX0vec[1]		
+## new start estimate from last fit (without any modification)						
+				vstart<-FX0vec[-1]		
+## X1 is next proposed tz						
+				tz=X1		
+				FX1vec<-.Call("MLEdMaxLLdx", MLEclassList, ControlList, vstart, tz, package="abremDebias")		
+				FX1<-FX1vec[1]		
+## new start estimate from last fit (without any modification)						
+				vstart<-FX1vec[-1]		
+## FX1 will contain slope sign information to be used only one time to find X2						
+				D<- abs(FX1-FX0)		
+				X2<-X1+abs(X1-X0)*FX1/D		
+				if(X2>C1) {X2<-X1+0.9*(C1-X1)}		
+				X0<-X1		
+				X1<-X2		
+				DX<-X1-X0		
+				istep<-istep+1		
+##  Detail output to be available with listout==TRUE						
+		DF<-data.frame(steps=istep,root=X0,error=DX,deriv=FX1)				
+						
+						
+		while(abs(DX)>DL&&istep<maxit)  {				
+				FX0<-FX1		
+## save last successful call with useful vstart						
+				FX0vec<-FX1vec		
+## X1 is next proposed tz						
+				tz=X1		
+				FX1vec<-.Call("MLEdMaxLLdx", MLEclassList, ControlList, vstart, tz, package="abremDebias")		
+				FX1<-FX1vec[1]		
+				if(is.nan(FX1))  {		
+				FX1<-FX0		
+				secant_warning=TRUE		
+				break		
+				}		
+## new start estimate from last fit (without any modification)						
+				vstart<-FX1vec[-1]		
+						
+## FX1 will contain slope information only one time						
+				D<- abs(FX1-FX0)		
+				X2<-X1+abs(X1-X0)*FX1/D		
+				if(X2>=C1) {X2<-X1+0.9*(C1-X1)}		
+						
+				X0<-X1		
+				X1<-X2		
+				DX<-X1-X0		
+				istep<-istep+1		
+						
+				DFline<-data.frame(steps=istep,root=X0,error=DX,deriv=FX1)		
+				DF<-rbind(DF,DFline)		
+## return to while loop						
+		}				
+## provide a last good vstart in case FX1vec indicated nan						
+		vstart<-FX0vec[-1]				
+## Can X0 be first trial, but ultimately subject to convergence problems??						
+		listout_int<-0				
+		result_of_simplex_call<-.Call("MLEsimplex",MLEclassList, ControlList, vstart, X0, listout_int, package="abremDebias")				
+						
+## extract fit vector from result of call to enable finishing treatment of the outvec						
+						
+		outvec<-c(result_of_simplex_call[1:2], X0, result_of_simplex_call[3])				
+						
+		if(dist_num==1)  {				
+			names(outvec)<-c("Eta","Beta", "t0", "LL")			
+			if(length(debias)>0)  {			
+				if(debias=="rba")  {		
+					outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="weibull",basis="median")	
+				}		
+				if(debias=="mean")  {		
+					outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="weibull",basis="mean")	
+				}		
+				if(debias=="hirose-ross")  {		
+					outvec[2]<-outvec[2]*hrbu(Q[1]-Q[3], Q[3])	
+				}		
+				outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[2],outvec[1]),dist_num, X0, package="abremDebias")		
+				attr(outvec,"bias_adj")<-debias		
+			}			
+		}				
+		if(dist_num == 2)  {				
+			names(outvec)<-c("Mulog","Sigmalog", "t0", "LL")			
+			if(length(debias)>0)  {			
+				outvec[2]<-outvec[2]*rba(Q[1]-Q[3], dist="lognormal")		
+				if(debias!="rba")  {		
+					warning("rba has been applied to adjust lognormal")	
+					debias="rba"	
+				}		
+				outvec[3]<-.Call("MLEloglike",MLEclassList,c(outvec[1],outvec[2]),dist_num, X0, package="abremDebias")		
+				attr(outvec,"bias_adj")<-debias		
+			}			
+		}				
+						
+		optDF<-DF[-1]				
+						
+## end of 3p code						
+}						
+
+
+	
 ## the following applies to both 2p and 3p results
 	attr(outvec,"data_types")<-Q[-2]
 	if(listout==FALSE) {	
