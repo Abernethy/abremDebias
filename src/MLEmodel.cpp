@@ -334,12 +334,12 @@ SEXP MLEmodel::MLE_Simplex(SEXP arg1, arma::colvec vstart, double tz, int listou
 
 	// Exported Functions
 
-	SEXP MLEloglike(SEXP arg1, SEXP arg3, SEXP arg4, SEXP arg5)  {
+	SEXP MLEloglike(SEXP arg1, SEXP arg3, SEXP arg4, SEXP arg5, SEXP arg6)  {
 		MLEmodel mymodel(arg1);
 		arma::colvec par=Rcpp::as<arma::colvec>(arg3);
 		int dist_num=Rcpp::as<int>(arg4);
-		int sign=1;
-		double tz=Rcpp::as<double>(arg5);
+		int sign=Rcpp::as<int>(arg5);
+		double tz=Rcpp::as<double>(arg6);
 		return wrap(mymodel.LogLike(par, sign, dist_num, tz));
 	}
 

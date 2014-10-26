@@ -1,4 +1,4 @@
-abremLoglike<-function(x, par, dist="weibull", tz=0 )  {				
+abremLoglike<-function(par, x, dist="weibull", sign=1, tz=0 )  {				
 ## check basic format of x				
 				
 	if(class(x)!="data.frame") {stop("abremLoglike takes a structured dataframe input, use mleframe")}			
@@ -88,11 +88,11 @@ abremLoglike<-function(x, par, dist="weibull", tz=0 )  {
 
 	MLEclassList<-list(fsdi=fsdi,q=q,N=N)
 	
-	
-	
-	
-								
-	outval<-.Call("MLEloglike",MLEclassList,par,dist_num, tz, package="abremDebias")
+	if(sign^2!=1)  {	
+		stop("sign must be 1 or -1")
+	}	
+							
+	outval<-.Call("MLEloglike",MLEclassList,par,dist_num, sign, tz, package="abremDebias")
 				
 			
 outval			
