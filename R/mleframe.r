@@ -49,7 +49,8 @@ mleframe<-function(x, s=NULL, interval=NULL)  {
 	}			
 				
 ## now build dataframes for failures and suspensions				
-## could x be a dataframe with time and event columns??				
+## need to set suspensions NULL here until proven filled
+## either by s argument or x as event_frame			
 	suspensions<-NULL			
 	if(is.vector(x))  {			
 		if(anyNA(x))  {		
@@ -62,16 +63,7 @@ mleframe<-function(x, s=NULL, interval=NULL)  {
 		x<-sort(x)		
 		failures<-data.frame(left=x,right=x,qty=rep(1,length(x)))		
 				
-		if(length(s)>0)  {		
-		if(anyNA(s))  {		
-		stop("NA  in suspension data")		
-		}		
-		if(any(s<=0))  {		
-		stop("non-positive values in suspension data")		
-		}		
-		s<-sort(s)		
-		suspensions<-data.frame(left=s,right=-1,qty=rep(1,length(s)))		
-		}		
+		
 	}else{			
 	## here a time-event dataframe can be evaluated, if provided as x				
 	## This is the support for a time-event dataframe 
@@ -103,25 +95,42 @@ mleframe<-function(x, s=NULL, interval=NULL)  {
 			stop("event column not '1' or '0' ")
 			}
 
-			if(length(s)>0)  {
-			warning("argument 's' ignored when time-event dataframe provided")
-			}
-
-
-
-			f<-x[which(x$event==1),1]
-					failures <- data.frame(left = f, right = f, qty = rep(1, length(f)))
-			if(identical(ev_info, c("0","1"))) {
-			s<-x[which(x$event==0),1]
-						suspensions <- data.frame(left = s, right = -1, qty = rep(1, length(s)))
-			}
 		}else {		
 			if (length(x) > 0) {
 				stop("error in x argument type")
-			}
+			}else{
+## NULL for exact time failures will be accepted			
+				failures=NULL
+			}				
 		}
-	}			
-	DF<-rbind(failures,suspensions,interval)			
+	}
+
+	if(length(s)>0)  {
+	warning("argument 's' ignored when time-event dataframe provided")
+	}
+
+	f<-x[which(x$event==1),1]
+			failures <- data.frame(left = f, right = f, qty = rep(1, length(f)))
+	if(identical(ev_info, c("0","1"))) {
+	s<-x[which(x$event==0),1]
+				suspensions <- data.frame(left = s, right = -1, qty = rep(1, length(s)))
+	}
+	
+	
+## independent evaluation of s vector	
+	if (class(x)!="data.frame" && length(s) > 0) {		
+		if(anyNA(s))  {		
+		stop("NA  in suspension data")		
+		}		
+		if(any(s<=0))  {		
+		stop("non-positive values in suspension data")		
+		}		
+		s<-sort(s)		
+		suspensions<-data.frame(left=s,right=-1,qty=rep(1,length(s)))			
+	}
+	
+	DF<-rbind(failures,suspensions,interval)
+	if(nrow(DF)<1) stop("no data provided")
 ## assure all integers in qty				
 	DF$qty<-floor(DF$qty)			
 	outDF<-DF[1,]			
