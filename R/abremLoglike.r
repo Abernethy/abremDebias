@@ -18,7 +18,8 @@ abremLoglike<-function(par, x, dist="weibull", sign=1, tz=0 )  {
 	discoveryNDX<-which(x$left==0)			
 	Nd<-length(discoveryNDX)			
 	intervalNDX<-which(testint>0)			
-	interval<-x[intervalNDX,]			
+	interval<-x[intervalNDX,]
+## note new plural object intervalsNDX	used to capture true intervals separate from discoveries
 	intervalsNDX<-which(interval$left>0)			
 	Ni<-length(intervalsNDX)			
 				

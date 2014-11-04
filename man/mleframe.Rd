@@ -8,13 +8,13 @@ Validate input data by types and build a dataframe to be used as the primary arg
 }
 
 \usage{
-mleframe(x, s=NULL, interval=NULL) 
+mleframe(x, susp=NULL, interval=NULL) 
 }
 
 \arguments{
   \item{x}{An expected vector of failure data. Alternative support is provided for a dataframe holding time and event columns,
   where event markers for failure occurrences are 1 and suspensions (right censored data) are 0.}
-  \item{s}{An optional vector of suspension data.}
+  \item{susp}{An optional vector of suspension data.}
   \item{interval}{A dataframe holding interval bounds for failure data in columns named 'left' and 'right'.
   The left(early) interval bound for left-censored data must be entered as zero (NA is not accepted).
   An optional column named 'qty' may contain the integer quantity of data entries having same interval values.}  

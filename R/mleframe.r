@@ -1,4 +1,4 @@
-mleframe<-function(x, s=NULL, interval=NULL)  {					
+mleframe<-function(x, susp=NULL, interval=NULL)  {					
 ## interval dataframe validation				
 	colname_error<-FALSE			
 	if(class(interval)=="data.frame")  {			
@@ -94,15 +94,15 @@ mleframe<-function(x, s=NULL, interval=NULL)  {
 			}else{
 			stop("event column not '1' or '0' ")
 			}
-			if(length(s)>0)  {
-			warning("argument 's' ignored when time-event dataframe provided")
+			if(length(susp)>0)  {
+			warning("argument 'susp' ignored when time-event dataframe provided")
 			}
 
 			f<-x[which(x$event==1),1]
 					failures <- data.frame(left = f, right = f, qty = rep(1, length(f)))
 			if(identical(ev_info, c("0","1"))) {
-			s<-x[which(x$event==0),1]
-						suspensions <- data.frame(left = s, right = -1, qty = rep(1, length(s)))
+			susp<-x[which(x$event==0),1]
+						suspensions <- data.frame(left = susp, right = -1, qty = rep(1, length(s)))
 			}			
 
 		}else {		
@@ -115,16 +115,16 @@ mleframe<-function(x, s=NULL, interval=NULL)  {
 		}
 	}
 
-## independent evaluation of s vector	
-	if (class(x)!="data.frame" && length(s) > 0) {		
-		if(anyNA(s))  {		
+## independent evaluation of susp vector	
+	if (class(x)!="data.frame" && length(susp) > 0) {		
+		if(anyNA(susp))  {		
 		stop("NA  in suspension data")		
 		}		
-		if(any(s<=0))  {		
+		if(any(susp<=0))  {		
 		stop("non-positive values in suspension data")		
 		}		
-		s<-sort(s)		
-		suspensions<-data.frame(left=s,right=-1,qty=rep(1,length(s)))			
+		susp<-sort(susp)		
+		suspensions<-data.frame(left=susp,right=-1,qty=rep(1,length(susp)))			
 	}
 	
 	DF<-rbind(failures,suspensions,interval)
