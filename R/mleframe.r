@@ -134,8 +134,9 @@ mleframe<-function(x, susp=NULL, interval=NULL)  {
 	outDF<-DF[1,]			
 	outline<-2			
 	for(line in 2:nrow(DF))  {			
-		if(DF[line,1]-DF[line-1,1]+DF[line,2]-DF[line-1,2]==0)  {		
-			outDF[outline-1,3]<-DF[line,3]+DF[line-1,3]	
+		if(DF[line,1]-DF[line-1,1]+DF[line,2]-DF[line-1,2]==0)  {
+## bug found during Meeker study example 3.5		
+			outDF[outline - 1, 3] <- DF[line, 3] + outDF[outline - 1, 3]	
 		}else{		
 			outDF<-rbind(outDF,DF[line,])	
 			outline<-outline+1	
